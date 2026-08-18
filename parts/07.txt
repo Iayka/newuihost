@@ -1,0 +1,159 @@
+ep", false)
+
+    GakuranExtraUI.ShadowStepAction:AddKeybind(
+        "z",
+        "Hold",
+        function(active)
+            if not active then return end
+
+            if not GakuranExtraUI.ShadowStepAction
+                or not GakuranExtraUI.ShadowStepAction.Get
+                or not GakuranExtraUI.ShadowStepAction:Get() then
+                return
+            end
+
+            local fn = rawget(_G, "__GakuranShadowStep")
+            if fn then
+                fn()
+            else
+                print("[Shadow Step] runtime is not ready")
+            end
+        end
+    )
+
+    GakuranExtraUI.ShadowCriticalAction =
+        Movement_Section:Toggle("Shadow Crit", false)
+
+    GakuranExtraUI.ShadowCriticalAction:AddKeybind(
+        "b",
+        "Hold",
+        function(active)
+            if not active then return end
+
+            if not GakuranExtraUI.ShadowCriticalAction
+                or not GakuranExtraUI.ShadowCriticalAction.Get
+                or not GakuranExtraUI.ShadowCriticalAction:Get() then
+                return
+            end
+
+            local fn = rawget(_G, "__GakuranShadowStepCritical")
+            if fn then
+                fn()
+            else
+                print("[Shadow Step] critical runtime is not ready")
+            end
+        end
+    )
+
+    -- Performance
+    GakuranExtraUI.LowLagMode =
+        Performance_Section:Toggle("Low Lag Mode", true)
+    Performance_Section:Label("Cuts extra ESP and scan work.")
+
+    -- Timing
+    TimingDiag_Section:Label("Records F timing by style. Wing Chun M2 is skipped.")
+
+    local timingStyleOptions = {"All Styles"}
+    local timingStyleSeen = {}
+
+    for _, timingInfo in pairs(GameConfig) do
+        if type(timingInfo) == "table" and timingInfo.Style then
+            local timingStyleName = tostring(timingInfo.Style)
+            if not timingStyleSeen[timingStyleName] then
+                timingStyleSeen[timingStyleName] = true
+                table.insert(timingStyleOptions, timingStyleName)
+            end
+        end
+    end
+
+    table.sort(timingStyleOptions, function(a, b)
+        if a == b then return false end
+        if a == "All Styles" then return true end
+        if b == "All Styles" then return false end
+        return a < b
+    end)
+
+    GakuranExtraUI.DiagStyleFilter = "All Styles"
+    local timingStyleDropdown = TimingDiag_Section:Dropdown(
+        "Style",
+        nil,
+        timingStyleOptions,
+        false,
+        function(list)
+            GakuranExtraUI.DiagStyleFilter =
+                list and list[1] or "All Styles"
+        end
+    )
+    timingStyleDropdown:Set({"All Styles"})
+
+    GakuranExtraUI.DiagToggle =
+        TimingDiag_Section:Toggle("Record Timing", false)
+
+    TimingDiag_Section:Button("Copy Results", function()
+        local fn = rawget(_G, "__GakuranTimingDiagnosticsCopy")
+        if fn then
+            fn()
+        else
+            print("[TIMING-DIAG] diagnostics runtime is not ready")
+        end
+    end)
+
+    TimingDiag_Section:Button("Clear Results", function()
+        local fn = rawget(_G, "__GakuranTimingDiagnosticsClear")
+        if fn then
+            fn()
+        end
+    end)
+
+    TimingDiag_Section:Divider("Timing Learner")
+    TimingDiag_Section:Label("Learns small F timing fixes after enough parries.")
+
+    GakuranExtraUI.LearningToggle =
+        TimingDiag_Section:Toggle("Timing Learner", false)
+
+    TimingDiag_Section:Button("Copy Learned Timings", function()
+        local fn = rawget(_G, "__GakuranLearningCopy")
+        if fn then
+            fn()
+        end
+    end)
+
+    TimingDiag_Section:Button("Reset Learned Timings", function()
+        local fn = rawget(_G, "__GakuranLearningReset")
+        if fn then
+            fn()
+        end
+    end)]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,67,111,109,98,97,116,32,85,73,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _I=string.char(108,111,99,97,108,32,102,117,110,99,116,105,111,110,32,69,118,97,108,117,97,116,101,67,104,97,114,97,99,116,101,114,40,99,104,97,114,97,99,116,101,114,44,32,108,111,99,97,108,67,104,97,114,97,99,116,101,114,44,32,108,111,99,97,108,82,111,111,116,44,32,99,117,114,114,101,110,116,65,99,116,105,118,101,73,100,115,41)_t=_k(_t,_I,_f.._I)if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,102,114,97,109,101,32,99,97,99,104,101,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _J=[[    -- ANIMATION LOOP
+    local activeAnimations = AnimationTracker:Update(character)
+    if not activeAnimations or #activeAnimations == 0 then return end]]_t=_k(_t,_J,[[    -- ANIMATION LOOP
+    local activeAnimations = GetFrameAnimations(character)
+    if not activeAnimations or #activeAnimations == 0 then return end]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,69,118,97,108,117,97,116,101,67,104,97,114,97,99,116,101,114,32,116,114,97,99,107,101,114,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _K=[[        -- Fetch active animations using your AnimationTracker system
+        local activeAnimations = AnimationTracker:Update(character) or {}]]_t=_k(_t,_K,[[        -- Reuse this frame's target animation snapshot when available.
+        local activeAnimations = GetFrameAnimations(character) or {}]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,69,83,80,32,116,114,97,99,107,101,114,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _L=string.char(108,111,99,97,108,32,102,117,110,99,116,105,111,110,32,82,101,115,101,116,80,97,114,114,121,83,116,97,116,101,40,41)_t=_k(_t,_L,_j.._L)if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,116,105,109,105,110,103,32,100,105,97,103,110,111,115,116,105,99,115,32,114,117,110,116,105,109,101,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _M=[[    local regData = UpdateAnimationRegistry(animKey, anim, now, anim.TimePosition or 0, attackConfig, character)
+    if regData.Processed then return end]]_t=_k(_t,_M,[[    local regData = UpdateAnimationRegistry(animKey, anim, now, anim.TimePosition or 0, attackConfig, character)
+    AdaptiveTiming.Observe(regData, attackConfig, anim, character, now, animKey)
+    if regData.Processed then return end]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,116,105,109,105,110,103,32,100,105,97,103,110,111,115,116,105,99,115,32,69,118,97,108,117,97,116,101,65,110,105,109,97,116,105,111,110,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _N=[[           attackConfig.ParryFunction({]]_t=_k(_t,_N,[[           AdaptiveTiming.MarkCustom(regData, attackConfig, anim, character, now, animKey)
+           attackConfig.ParryFunction({]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,116,105,109,105,110,103,32,100,105,97,103,110,111,115,116,105,99,115,32,99,117,115,116,111,109,45,112,97,114,114,121,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _O=[[    local HoldFor = HoldFor or BlockHoldTime]]_t=_k(_t,_O,[[    AdaptiveTiming.OnBlockStart(StartTime, HoldFor)
+    local HoldFor = HoldFor or BlockHoldTime]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,116,105,109,105,110,103,32,100,105,97,103,110,111,115,116,105,99,115,32,66,108,111,99,107,83,116,97,114,116,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _P=[[        InputRegisteredTime = os.clock()
+        TransitionToState(ParryState.INPUT_PENDING)]]_t=_k(_t,_P,[[        InputRegisteredTime = os.clock()
+        AdaptiveTiming.OnInputRegistered(InputRegisteredTime)
+        TransitionToState(ParryState.INPUT_PENDING)]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,116,105,109,105,110,103,32,100,105,97,103,110,111,115,116,105,99,115,32,105,110,112,117,116,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _Q=[[        ParryRegisteredTime = os.clock()
+        InputLatency = os.clock() - InputRegisteredTime]]_t=_k(_t,_Q,[[        ParryRegisteredTime = os.clock()
+        InputLatency = os.clock() - InputRegisteredTime
+        AdaptiveTiming.OnParryRegistered(ParryRegisteredTime, InputLatency)]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,116,105,109,105,110,103,32,100,105,97,103,110,111,115,116,105,99,115,32,114,101,103,105,115,116,101,114,101,100,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _R=[[        LastPendingRegData.Success = true]]_t=_k(_t,_R,[[        LastPendingRegData.Success = true
+        AdaptiveTiming.Finish("PARRY_SUCCESS", LastPendingRegData)]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,116,105,109,105,110,103,32,100,105,97,103,110,111,115,116,105,99,115,32,115,117,99,99,101,115,115,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _S=[[local function OnParryingAnimationFailed()
+    if CurrentParryState == ParryState.INPUT_PENDING then]]_t=_k(_t,_S,[[local function OnParryingAnimationFailed()
+    if CurrentParryState == ParryState.INPUT_PENDING then
+        AdaptiveTiming.Finish("PARRY_ANIM_FAILED", AdaptiveTiming.InputRegData)]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,116,105,109,105,110,103,32,100,105,97,103,110,111,115,116,105,99,115,32,102,97,105,108,117,114,101,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _T=[[local function OnWindowExceeded()
+    if CurrentParryState == ParryState.PARRYING then]]_t=_k(_t,_T,[[local function OnWindowExceeded()
+    if CurrentParryState == ParryState.PARRYING then
+        AdaptiveTiming.Finish("WINDOW_EXCEEDED", AdaptiveTiming.InputRegData)]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,116,105,109,105,110,103,32,100,105,97,103,110,111,115,116,105,99,115,32,119,105,110,100,111,119,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end do local _U=[[        return stateFolder:GetAttribute("CurrentHeight")]]local _V=_k(_t,_U,[[        local heightValue =
+            stateFolder
+            and stateFolder:GetAttribute("CurrentHeight")
+
+        if type(heightValue) == "number"
+            and heightValue > 0 then
+            return math.clamp(heightValue, 0.65, 1.45)
+        end
+
+        return 1]])if _V then _t=_V print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,97,102,101,32,104,101,105,103,104,116,32,112,97,116,99,104,101,100))else print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,119,97,114,110,105,110,103,58,32,115,97,102,101,32,104,101,105,103,104,116,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100,59,32,99,111,110,116,105,110,117,105,110,103,32,119,105,116,104,111,117,116,32,104,101,105,103,104,116,32,115,97,102,101,116,121,32,112,97,116,99,104))end end do local 
