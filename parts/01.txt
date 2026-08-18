@@ -1,0 +1,263 @@
+unt))
+end
+-- ===== end v6.8.1 Striker patch =====
+]====]local _f=[====[
+local FrameAnimationCache = {}
+
+local function GetFrameAnimations(character)
+    if FrameAnimationCache[character] ~= nil then
+        return FrameAnimationCache[character]
+    end
+
+    local ok, activeAnimations = pcall(function()
+        return AnimationTracker:Update(character)
+    end)
+
+    if not ok or not activeAnimations then
+        activeAnimations = {}
+    end
+
+    FrameAnimationCache[character] = activeAnimations
+    return activeAnimations
+end
+
+]====]local _g=[====[
+-- ==========================================================
+-- v7.1.6 Snap Lock - Shift-Lock Sticky Parry Fix
+-- ==========================================================
+-- Regression fix:
+-- v7.0+ changed Snap Lock to ONE CFrame write and then only relied on
+-- Humanoid.AutoRotate=false. In Shift Lock, Roblox can still reclaim the body
+-- facing, which makes the character briefly face the attacker and then snap
+-- back before Auto Parry actually fires.
+--
+-- This restores the last known-good sticky-face behavior:
+--   * select ONE attacker for the attack;
+--   * never rotate the camera;
+--   * never switch targets while that attack lock is active;
+--   * keep AutoRotate disabled through the complete parry window;
+--   * reassert BODY yaw only if Shift Lock actually drifts it away;
+--   * reassert against the SAME target only, so there is no multi-target spin;
+--   * Auto Parry still runs immediately after Snap Lock in the same frame;
+--   * Snap Lock never changes BlockStart / BlockExpire / reaction timings.
+
+local BLATANT_FACE_LEAD_TIME = 0.10
+local BLATANT_FACE_SEEN_TTL = 0.90
+
+-- Hold long enough for the actual F/parry window to finish before Shift Lock
+-- regains control. This is intentionally longer than the broken single-write
+-- version's effective facing duration.
+local BLATANT_FACE_MIN_HOLD = 0.22
+local BLATANT_FACE_AFTER_WINDOW = 0.12
+local BLATANT_FACE_MAX_HOLD = 0.80
+
+-- Reapply only after meaningful drift. This keeps the lock sticky without
+-- hammering CFrame every render frame or causing visible jitter.
+local BLATANT_FACE_REAPPLY_ANGLE = math.rad(1.25)
+
+local BlatantFaceSeen = {}
+local BlatantFaceThreat = {
+    character = nil,
+    animKey = nil,
+    expireAt = 0,
+}
+
+local BlatantFaceLock = {
+    animKey = nil,
+    character = nil,
+    targetRoot = nil,
+    humanoid = nil,
+    savedAutoRotate = nil,
+    releaseAt = 0,
+}
+
+local function ClearBlatantFaceThreat()
+    BlatantFaceThreat.character = nil
+    BlatantFaceThreat.animKey = nil
+    BlatantFaceThreat.expireAt = 0
+    BlatantFaceThreatCharacter = nil
+end
+
+local function ReleaseBlatantFaceLock()
+    local humanoid = BlatantFaceLock.humanoid
+    local savedAutoRotate = BlatantFaceLock.savedAutoRotate
+
+    if humanoid and humanoid.Parent and savedAutoRotate ~= nil then
+        pcall(function()
+            humanoid.AutoRotate = savedAutoRotate
+        end)
+    end
+
+    BlatantFaceLock.animKey = nil
+    BlatantFaceLock.character = nil
+    BlatantFaceLock.targetRoot = nil
+    BlatantFaceLock.humanoid = nil
+    BlatantFaceLock.savedAutoRotate = nil
+    BlatantFaceLock.releaseAt = 0
+end
+
+local function GetShortestYaw(localRoot, targetRoot)
+    local offset = targetRoot.Position - localRoot.Position
+    local flatOffset = Vector3.new(offset.X, 0, offset.Z)
+
+    if flatOffset.Magnitude <= 0.001 then
+        return nil, nil
+    end
+
+    local targetDirection = flatOffset.Unit
+    local currentLook = localRoot.CFrame.LookVector
+
+    local currentYaw = math.atan2(
+        -currentLook.X,
+        -currentLook.Z
+    )
+
+    local desiredYaw = math.atan2(
+        -targetDirection.X,
+        -targetDirection.Z
+    )
+
+    -- atan2(sin, cos) normalizes to [-pi, pi], so every correction uses the
+    -- shortest possible rotational direction.
+    local deltaYaw = math.atan2(
+        math.sin(desiredYaw - currentYaw),
+        math.cos(desiredYaw - currentYaw)
+    )
+
+    return currentYaw + deltaYaw, deltaYaw
+end
+
+local function ApplyTargetYaw(localRoot, targetRoot, forceWrite)
+    local finalYaw, deltaYaw =
+        GetShortestYaw(localRoot, targetRoot)
+
+    if not finalYaw or not deltaYaw then
+        return false, nil
+    end
+
+    if not forceWrite
+        and math.abs(deltaYaw) < BLATANT_FACE_REAPPLY_ANGLE then
+        return true, deltaYaw
+    end
+
+    local position = localRoot.Position
+
+    localRoot.CFrame =
+        CFrame.new(position.X, position.Y, position.Z)
+        * CFrame.Angles(0, finalYaw, 0)
+
+    return true, deltaYaw
+end
+
+local function BlatantFaceTask()
+    -- EvaluateParryTriggers reads this later in the SAME RenderStepped frame.
+    BlatantFaceThreatCharacter = nil
+
+    local enabled =
+        GakuranExtraUI
+        and GakuranExtraUI.SnapToggle
+        and GakuranExtraUI.SnapToggle.Get
+        and GakuranExtraUI.SnapToggle.Get()
+
+    local now = os.clock()
+
+    if not enabled then
+        ReleaseBlatantFaceLock()
+        ClearBlatantFaceThreat()
+        table.clear(BlatantFaceSeen)
+        return
+    end
+
+    local localCharacter =
+        LocalPlayer and LocalPlayer.Character
+
+    local localRoot =
+        localCharacter
+        and localCharacter:FindFirstChild("HumanoidRootPart")
+
+    local localHumanoid =
+        localCharacter
+        and localCharacter:FindFirstChildWhichIsA("Humanoid")
+
+    if not localCharacter
+        or not localRoot
+        or not localHumanoid then
+        ReleaseBlatantFaceLock()
+        ClearBlatantFaceThreat()
+        return
+    end
+
+    -- Keep AP bridged to the exact attacker only during the real parry window.
+    if BlatantFaceThreat.character
+        and BlatantFaceThreat.character.Parent
+        and now <= BlatantFaceThreat.expireAt then
+
+        BlatantFaceThreatCharacter =
+            BlatantFaceThreat.character
+    else
+        ClearBlatantFaceThreat()
+    end
+
+    -- SHIFT-LOCK RESISTANT STICKY HOLD.
+    -- Once an attack owns the lock, we do not search for another target until
+    -- this lock finishes. We only correct yaw if Shift Lock actually pulls the
+    -- body away from the SAME attacker.
+    if BlatantFaceLock.humanoid then
+        local lockStillValid =
+            BlatantFaceLock.humanoid == localHumanoid
+            and BlatantFaceLock.character
+            and BlatantFaceLock.character.Parent
+            and BlatantFaceLock.targetRoot
+            and BlatantFaceLock.targetRoot.Parent
+            and now < BlatantFaceLock.releaseAt
+
+        if lockStillValid then
+            if BlatantFaceThreat.character
+                == BlatantFaceLock.character
+                and now <= BlatantFaceThreat.expireAt then
+
+                BlatantFaceThreatCharacter =
+                    BlatantFaceLock.character
+            end
+
+            local _, correctionDelta =
+                ApplyTargetYaw(
+                    localRoot,
+                    BlatantFaceLock.targetRoot,
+                    false
+                )
+
+            if correctionDelta
+                and math.abs(correctionDelta)
+                    >= BLATANT_FACE_REAPPLY_ANGLE
+                and AdaptiveTiming
+                and AdaptiveTiming.OnSnapCorrection then
+
+                AdaptiveTiming.OnSnapCorrection(
+                    BlatantFaceLock.animKey
+                )
+            end
+
+            return
+        end
+
+        ReleaseBlatantFaceLock()
+    end
+
+    -- Do not acquire a second target while the AP threat bridge from the
+    -- previous attack is still alive for a few milliseconds.
+    if BlatantFaceThreatCharacter then
+        return
+    end
+
+    for animKey, expireAt in pairs(BlatantFaceSeen) do
+        if expireAt <= now then
+            BlatantFaceSeen[animKey] = nil
+        end
+    end
+
+    -- PERFORMANCE: scan the exact AP target pool only.
+    -- The old build walked every model in the selected workspace folder every
+    -- RenderStepped while Snap Lock was armed. In populated servers that could
+    -- become the largest extra per-frame cost in this wrapper.
+    if not TargetCharacters or #TargetCharacte
