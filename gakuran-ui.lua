@@ -1,19 +1,35 @@
--- Loader for the exact script supplied by the user.
--- The source is stored unchanged in source.md; this removes only the outer
--- Markdown code fences before compiling it.
-local URL = "https://raw.githubusercontent.com/Iayka/newuihost/main/source.md"
-local source = game:HttpGet(URL)
+-- Loader for the exact Lua script supplied by the user.
+-- The script is split into raw text chunks only because of GitHub connector
+-- upload-size limits. The chunks are concatenated byte-for-byte before running.
 
-if string.sub(source, 1, 3) == "```" then
-    local newline = string.find(source, "\n", 1, true)
-    if newline then
-        source = string.sub(source, newline + 1)
+local BASE = "https://raw.githubusercontent.com/Iayka/newuihost/main/parts/"
+local PARTS = {
+    "00.txt",
+    "01.txt",
+    "02.txt",
+    "03.txt",
+    "04.txt",
+    "05.txt",
+    "06.txt",
+    "07.txt",
+    "08.txt",
+}
+
+local chunks = {}
+
+for i, fileName in ipairs(PARTS) do
+    local part = game:HttpGet(BASE .. fileName)
+
+    if type(part) ~= "string" or part == "" then
+        error("[newuihost] failed to download " .. fileName)
     end
+
+    chunks[i] = part
 end
 
-source = string.gsub(source, "\r?\n```%s*$", "", 1)
-
+local source = table.concat(chunks)
 local chunk, compileError = loadstring(source)
+
 if not chunk then
     error("[newuihost] compile failed: " .. tostring(compileError))
 end
