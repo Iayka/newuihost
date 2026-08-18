@@ -216,7 +216,7 @@ function AdaptiveTiming.BuildClipboard()
             "SnapCorrections",
             "LearningState",
             "Outcome",
-        }, "\t")
+        }, "	")
     }
 
     for _, row in ipairs(AdaptiveTiming.Rows) do
@@ -263,7 +263,7 @@ function AdaptiveTiming.BuildClipboard()
             tostring(row.SnapCorrections or 0),
             tostring(row.LearningState or "-"),
             tostring(row.Outcome or "INCOMPLETE"),
-        }, "\t"))
+        }, "	"))
     end
 
     return table.concat(lines, string.char(10))
@@ -275,7 +275,7 @@ function AdaptiveTiming.BuildLearnedClipboard()
             "Style",
             "Attack",
             "LearnedAdjustment",
-        }, "\t")
+        }, "	")
     }
 
     local styles = {}
@@ -298,7 +298,7 @@ function AdaptiveTiming.BuildLearnedClipboard()
                 AdaptiveTiming.Fmt(
                     AdaptiveTiming.Learned[style][attack]
                 ),
-            }, "\t"))
+            }, "	"))
         end
     end
 
