@@ -1,0 +1,454 @@
+rn true
+    end
+
+    return GakuranExtraUI.DiagToggle.Get() == true
+end
+
+function AdaptiveTiming.LearningEnabled()
+    return GakuranExtraUI
+        and GakuranExtraUI.LearningToggle
+        and GakuranExtraUI.LearningToggle.Get
+        and GakuranExtraUI.LearningToggle.Get() == true
+end
+
+function AdaptiveTiming.StyleSelected(attackConfig)
+    local filter = GakuranExtraUI
+        and GakuranExtraUI.DiagStyleFilter
+        or "All Styles"
+
+    if not filter
+        or filter == ""
+        or filter == "All"
+        or filter == "All Styles" then
+        return true
+    end
+
+    return AdaptiveTiming.Style(attackConfig) == tostring(filter)
+end
+
+function AdaptiveTiming.ShouldRecord(attackConfig)
+    if not attackConfig then
+        return false
+    end
+
+    -- Wing Chun M2 is a counter, not a normal parry timing sample.
+    if AdaptiveTiming.IsWingChunCounter(attackConfig) then
+        return false
+    end
+
+    if not AdaptiveTiming.StyleSelected(attackConfig) then
+        return false
+    end
+
+    return AdaptiveTiming.DiagnosticsEnabled()
+        or AdaptiveTiming.LearningEnabled()
+end
+
+function AdaptiveTiming.IsLearnable(attackConfig)
+    if not attackConfig
+        or AdaptiveTiming.IsWingChunCounter(attackConfig)
+        or attackConfig.ParryFunction then
+        return false
+    end
+
+    return true
+end
+
+function AdaptiveTiming.BaseReaction(attackConfig)
+    return tonumber(
+        attackConfig
+        and (
+            attackConfig.ReactionTime
+            or attackConfig.DefaultReactionTime
+        )
+        or DefaultReactionTime
+    ) or DefaultReactionTime
+end
+
+function AdaptiveTiming.StoredAdjustment(attackConfig, anim)
+    local style = AdaptiveTiming.Style(attackConfig)
+    local attack = AdaptiveTiming.Attack(attackConfig, anim)
+    local styleTable = AdaptiveTiming.Learned[style]
+
+    if not styleTable then
+        return 0
+    end
+
+    return tonumber(styleTable[attack]) or 0
+end
+
+function AdaptiveTiming.GetAdjustment(attackConfig)
+    if not AdaptiveTiming.LearningEnabled()
+        or not AdaptiveTiming.IsLearnable(attackConfig) then
+        return 0
+    end
+
+    return AdaptiveTiming.StoredAdjustment(attackConfig)
+end
+
+function AdaptiveTiming.SetAdjustment(attackConfig, value)
+    local style = AdaptiveTiming.Style(attackConfig)
+    local attack = AdaptiveTiming.Attack(attackConfig)
+
+    AdaptiveTiming.Learned[style] =
+        AdaptiveTiming.Learned[style] or {}
+
+    AdaptiveTiming.Learned[style][attack] =
+        math.clamp(
+            tonumber(value) or 0,
+            -AdaptiveTiming.Settings.MaxAdjustment,
+            AdaptiveTiming.Settings.MaxAdjustment
+        )
+
+    _G.__GakuranLearnedTimingValues = AdaptiveTiming.Learned
+end
+
+function AdaptiveTiming.OnSnap(animKey, character, deltaYaw, blockStart, blockExpire)
+    if not animKey then
+        return
+    end
+
+    local snap = AdaptiveTiming.SnapByAnimKey[animKey] or {
+        Used = true,
+        Corrections = 0,
+    }
+
+    snap.Used = true
+    snap.Target = tostring(character and character.Name or "?")
+    snap.YawDegrees = math.deg(tonumber(deltaYaw) or 0)
+    snap.BlockStart = blockStart
+    snap.BlockExpire = blockExpire
+
+    AdaptiveTiming.SnapByAnimKey[animKey] = snap
+
+    local row = AdaptiveTiming.RowByAnimKey[animKey]
+    if row then
+        row.SnapUsed = true
+        row.SnapTarget = snap.Target
+        row.SnapYawDegrees = snap.YawDegrees
+        row.SnapCorrections = snap.Corrections or 0
+    end
+end
+
+function AdaptiveTiming.OnSnapCorrection(animKey)
+    if not animKey then
+        return
+    end
+
+    local snap =
+        AdaptiveTiming.SnapByAnimKey[animKey]
+        or {
+            Used = true,
+            Corrections = 0,
+        }
+
+    snap.Corrections =
+        (snap.Corrections or 0) + 1
+
+    AdaptiveTiming.SnapByAnimKey[animKey] = snap
+
+    local row =
+        AdaptiveTiming.RowByAnimKey[animKey]
+
+    if row then
+        row.SnapUsed = true
+        row.SnapCorrections = snap.Corrections
+    end
+end
+
+function AdaptiveTiming.NewRow(regData, attackConfig, anim, character, animKey)
+    local learned = AdaptiveTiming.StoredAdjustment(attackConfig, anim)
+    local applied = AdaptiveTiming.LearningEnabled()
+        and AdaptiveTiming.IsLearnable(attackConfig)
+        and learned
+        or 0
+
+    local baseReaction = AdaptiveTiming.BaseReaction(attackConfig)
+    local snap = animKey and AdaptiveTiming.SnapByAnimKey[animKey] or nil
+
+    local row = {
+        Index = #AdaptiveTiming.Rows + 1,
+        RegData = regData,
+        AnimKey = animKey,
+
+        Style = AdaptiveTiming.Style(attackConfig),
+        Attack = AdaptiveTiming.Attack(attackConfig, anim),
+        AnimationId = tostring(anim.AnimationId or "?"),
+        Target = tostring(character and character.Name or "?"),
+
+        BaseReaction = baseReaction,
+        StoredLearnedAdjustment = learned,
+        AppliedLearnedAdjustment = applied,
+        EffectiveReaction = baseReaction + applied,
+
+        FirstSeenClock = os.clock(),
+        FirstSeenTrack = tonumber(anim.TimePosition) or 0,
+        FirstSeenSpeed = tonumber(anim.Speed) or 1,
+        LastTrack = tonumber(anim.TimePosition) or 0,
+        LastSpeed = tonumber(anim.Speed) or 1,
+
+        AnimationStart = regData and regData.StartTime or nil,
+        BlockStart = regData and regData.BlockStart or nil,
+        BlockExpire = regData and regData.BlockExpire or nil,
+
+        CustomParryFunction = attackConfig.ParryFunction ~= nil,
+        Learnable = AdaptiveTiming.IsLearnable(attackConfig),
+        LearningState = "collecting",
+
+        SnapUsed = snap and snap.Used == true or false,
+        SnapTarget = snap and snap.Target or "-",
+        SnapYawDegrees = snap and snap.YawDegrees or nil,
+        SnapCorrections = snap and snap.Corrections or 0,
+
+        Finalized = false,
+    }
+
+    table.insert(AdaptiveTiming.Rows, row)
+    AdaptiveTiming.ByRegData[regData] = row
+
+    if animKey then
+        AdaptiveTiming.RowByAnimKey[animKey] = row
+    end
+
+    print(string.format(
+        "[TIMING-DIAG][SEEN] #%d | %s | %s | Base=%s | Learned=%s | Effective=%s | Track=%s | Speed=%s | Snap=%s",
+        row.Index,
+        row.Style,
+        row.Attack,
+        AdaptiveTiming.Fmt(row.BaseReaction),
+        AdaptiveTiming.Fmt(row.AppliedLearnedAdjustment),
+        AdaptiveTiming.Fmt(row.EffectiveReaction),
+        AdaptiveTiming.Fmt(row.FirstSeenTrack),
+        AdaptiveTiming.Fmt(row.FirstSeenSpeed),
+        tostring(row.SnapUsed)
+    ))
+
+    return row
+end
+
+function AdaptiveTiming.GetRow(regData, attackConfig, anim, character, animKey)
+    if not AdaptiveTiming.ShouldRecord(attackConfig)
+        or not regData then
+        return nil
+    end
+
+    local row = AdaptiveTiming.ByRegData[regData]
+
+    if row and row.Finalized and regData.DidALoop then
+        row = nil
+        AdaptiveTiming.ByRegData[regData] = nil
+    end
+
+    if not row then
+        row = AdaptiveTiming.NewRow(
+            regData,
+            attackConfig,
+            anim,
+            character,
+            animKey
+        )
+    end
+
+    return row
+end
+
+function AdaptiveTiming.Observe(
+    regData,
+    attackConfig,
+    anim,
+    character,
+    now,
+    animKey
+)
+    local row = AdaptiveTiming.GetRow(
+        regData,
+        attackConfig,
+        anim,
+        character,
+        animKey
+    )
+
+    if not row then
+        return
+    end
+
+    row.LastObserveClock = now or os.clock()
+    row.LastTrack = tonumber(anim.TimePosition) or row.LastTrack
+    row.LastSpeed = tonumber(anim.Speed) or row.LastSpeed
+    row.AnimationStart = regData.StartTime or row.AnimationStart
+    row.BlockStart = regData.BlockStart or row.BlockStart
+    row.BlockExpire = regData.BlockExpire or row.BlockExpire
+
+    local snap = animKey and AdaptiveTiming.SnapByAnimKey[animKey] or nil
+    if snap then
+        row.SnapUsed = snap.Used == true
+        row.SnapTarget = snap.Target or row.SnapTarget
+        row.SnapYawDegrees = snap.YawDegrees or row.SnapYawDegrees
+        row.SnapCorrections = snap.Corrections or row.SnapCorrections
+    end
+end
+
+function AdaptiveTiming.MarkCustom(
+    regData,
+    attackConfig,
+    anim,
+    character,
+    now,
+    animKey
+)
+    local row = AdaptiveTiming.GetRow(
+        regData,
+        attackConfig,
+        anim,
+        character,
+        animKey
+    )
+
+    if not row then
+        return
+    end
+
+    row.CustomInvokedClock = now or os.clock()
+    row.CustomInvokedRel = regData.StartTime
+        and (row.CustomInvokedClock - regData.StartTime)
+        or nil
+
+    AdaptiveTiming.PendingCustomRegData = regData
+    AdaptiveTiming.PendingCustomUntil = os.clock() + 1.50
+end
+
+function AdaptiveTiming.ResolveBlockRegData()
+    if LastPendingRegData then
+        local row = AdaptiveTiming.ByRegData[LastPendingRegData]
+        if row and not row.Finalized then
+            return LastPendingRegData
+        end
+    end
+
+    if AdaptiveTiming.PendingCustomRegData
+        and os.clock() <= AdaptiveTiming.PendingCustomUntil then
+
+        local row =
+            AdaptiveTiming.ByRegData[
+                AdaptiveTiming.PendingCustomRegData
+            ]
+
+        if row and not row.Finalized then
+            return AdaptiveTiming.PendingCustomRegData
+        end
+    end
+
+    return nil
+end
+
+function AdaptiveTiming.OnBlockStart(startTime, holdFor)
+    if not AdaptiveTiming.DiagnosticsEnabled()
+        and not AdaptiveTiming.LearningEnabled() then
+        return
+    end
+
+    local regData = AdaptiveTiming.ResolveBlockRegData()
+    if not regData then
+        return
+    end
+
+    local row = AdaptiveTiming.ByRegData[regData]
+    if not row or row.Finalized then
+        return
+    end
+
+    local now = os.clock()
+
+    AdaptiveTiming.InputRegData = regData
+
+    row.BlockCallClock = now
+    row.BlockCallRel = regData.StartTime
+        and (now - regData.StartTime)
+        or nil
+
+    row.RequestedBlockRel = (
+        startTime
+        and regData.StartTime
+        and (startTime - regData.StartTime)
+    ) or nil
+
+    row.HoldFor = holdFor
+    row.TrackAtTrigger = row.LastTrack
+    row.SpeedAtTrigger = row.LastSpeed
+    row.BlockStart = regData.BlockStart or row.BlockStart
+    row.BlockExpire = regData.BlockExpire or row.BlockExpire
+end
+
+function AdaptiveTiming.OnInputRegistered(inputTime)
+    local regData = AdaptiveTiming.InputRegData
+    local row = regData and AdaptiveTiming.ByRegData[regData]
+
+    if not row or row.Finalized then
+        return
+    end
+
+    row.InputClock = inputTime
+    row.InputRel = regData.StartTime
+        and (inputTime - regData.StartTime)
+        or nil
+
+    if row.InputRel and row.RequestedBlockRel then
+        row.TimingError =
+            row.InputRel - row.RequestedBlockRel
+    end
+end
+
+function AdaptiveTiming.OnParryRegistered(parryTime, inputLatency)
+    local regData = AdaptiveTiming.InputRegData
+    local row = regData and AdaptiveTiming.ByRegData[regData]
+
+    if not row or row.Finalized then
+        return
+    end
+
+    row.ParryRegisteredClock = parryTime
+    row.ParryRegisteredRel = regData.StartTime
+        and (parryTime - regData.StartTime)
+        or nil
+
+    row.InputLatency = inputLatency
+end
+
+function AdaptiveTiming.PushHistory(row)
+    if not row
+        or not row.Learnable
+        or not row.InputRel
+        or not row.RequestedBlockRel then
+        return
+    end
+
+    if row.Outcome ~= "PARRY_SUCCESS"
+        and row.Outcome ~= "WINDOW_EXCEEDED" then
+        return
+    end
+
+    local key = row.Style .. "|" .. row.Attack
+    AdaptiveTiming.History[key] =
+        AdaptiveTiming.History[key] or {}
+
+    local history = AdaptiveTiming.History[key]
+
+    table.insert(history, {
+        Success = row.Outcome == "PARRY_SUCCESS",
+        Drift = row.InputRel - row.RequestedBlockRel,
+    })
+
+    while #history > 20 do
+        table.remove(history, 1)
+    end
+end
+
+function AdaptiveTiming.EvaluateLearning(row)
+    if not AdaptiveTiming.LearningEnabled()
+        or not row
+        or not row.Learnable then
+        return
+    end
+
+    local settings = AdaptiveTiming.Settings
+    local key = row.Style .. "|"
