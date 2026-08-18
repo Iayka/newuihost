@@ -1,0 +1,385 @@
+rs == 0 then
+        return
+    end
+
+    local bestCharacter = nil
+    local bestTargetRoot = nil
+    local bestAnimKey = nil
+    local bestBlockStart = nil
+    local bestBlockExpire = math.huge
+    local bestDistance = math.huge
+
+    for _, character in ipairs(TargetCharacters) do
+        if character
+            and character ~= localCharacter
+            and character.ClassName == "Model" then
+
+            local targetRoot =
+                character:FindFirstChild("HumanoidRootPart")
+
+            local targetHumanoid =
+                character:FindFirstChildWhichIsA("Humanoid")
+
+            if targetRoot
+                and targetHumanoid
+                and targetHumanoid.Health > 0 then
+
+                local distance =
+                    (targetRoot.Position - localRoot.Position).Magnitude
+
+                if distance <= AutoParryRange
+                    and distance > 0.001 then
+
+                    local activeAnimations =
+                        GetFrameAnimations(character)
+
+                    for _, anim in ipairs(activeAnimations) do
+                        if not anim.AnimationId then
+                            continue
+                        end
+
+                        local attackConfig =
+                            GameConfig[tostring(anim.AnimationId)]
+
+                        if not attackConfig then
+                            continue
+                        end
+
+                        -- Heavy/counter/dodge paths are intentionally left alone.
+                        -- Snap Lock should not steal control from Dodge().
+                        local isHeavy =
+                            attackConfig.DisplayName == "M2"
+                            or attackConfig.DisplayName == "Heavy"
+                            or attackConfig.Heavy
+
+                        if isHeavy then
+                            continue
+                        end
+
+                        local animKey =
+                            anim.Address or anim
+
+                        if BlatantFaceSeen[animKey] then
+                            continue
+                        end
+
+                        local regData =
+                            AnimationRegistry[animKey]
+
+                        if regData
+                            and regData.Processed then
+                            continue
+                        end
+
+                        local blockStart =
+                            regData and regData.BlockStart
+
+                        local blockExpire =
+                            regData and regData.BlockExpire
+
+                        -- On the very first detected frame AP may not have a
+                        -- registry entry yet. Estimate using AP's exact timing
+                        -- helper, then AP will create/use its normal registry
+                        -- data immediately after this task in the same frame.
+                        if not blockStart
+                            or not blockExpire then
+
+                            local playbackSpeed =
+                                math.abs(
+                                    tonumber(anim.Speed) or 1
+                                )
+
+                            if playbackSpeed < 0.05 then
+                                playbackSpeed = 1
+                            end
+
+                            local elapsedReal =
+                                math.max(
+                                    tonumber(anim.TimePosition) or 0,
+                                    0
+                                ) / playbackSpeed
+
+                            local estimatedStart =
+                                now
+                                - elapsedReal
+                                - ConstLatency
+
+                            blockStart, blockExpire =
+                                CalculateParryTiming(
+                                    attackConfig,
+                                    estimatedStart,
+                                    character
+                                )
+                        end
+
+                        if blockStart and blockExpire then
+                            local timeUntilInput =
+                                blockStart - now
+
+                            local stillParryable =
+                                now <= blockExpire
+
+                            if stillParryable
+                                and timeUntilInput
+                                    <= BLATANT_FACE_LEAD_TIME then
+
+                                -- One sticky threat only. Earliest expiring
+                                -- parry window wins; distance is the tie-breaker.
+                                if blockExpire < bestBlockExpire
+                                    or (
+                                        math.abs(
+                                            blockExpire
+                                            - bestBlockExpire
+                                        ) <= 0.001
+                                        and distance < bestDistance
+                                    ) then
+
+                                    bestBlockExpire = blockExpire
+                                    bestBlockStart = blockStart
+                                    bestDistance = distance
+                                    bestCharacter = character
+                                    bestTargetRoot = targetRoot
+                                    bestAnimKey = animKey
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if not bestTargetRoot
+        or not bestAnimKey
+        or not bestBlockStart
+        or bestBlockExpire == math.huge then
+        return
+    end
+
+    -- Bridge the exact faced attacker into AP through the complete parry
+    -- window. This prevents "face them, then AP checks somebody else".
+    BlatantFaceThreat.character = bestCharacter
+    BlatantFaceThreat.animKey = bestAnimKey
+    BlatantFaceThreat.expireAt =
+        math.min(
+            now + 0.65,
+            bestBlockExpire + 0.08
+        )
+
+    BlatantFaceThreatCharacter = bestCharacter
+
+    BlatantFaceSeen[bestAnimKey] =
+        now + BLATANT_FACE_SEEN_TTL
+
+    local _, deltaYaw =
+        GetShortestYaw(localRoot, bestTargetRoot)
+
+    if not deltaYaw then
+        return
+    end
+
+    local savedAutoRotate = nil
+
+    local gotAutoRotate, autoRotateValue =
+        pcall(function()
+            return localHumanoid.AutoRotate
+        end)
+
+    if gotAutoRotate then
+        savedAutoRotate = autoRotateValue
+
+        pcall(function()
+            localHumanoid.AutoRotate = false
+        end)
+    end
+
+    -- Initial shortest-path face. After this, only meaningful Shift-Lock drift
+    -- is corrected and always toward the SAME attacker.
+    ApplyTargetYaw(
+        localRoot,
+        bestTargetRoot,
+        math.abs(deltaYaw) > math.rad(1.0)
+    )
+
+    BlatantFaceLock.animKey = bestAnimKey
+    BlatantFaceLock.character = bestCharacter
+    BlatantFaceLock.targetRoot = bestTargetRoot
+    BlatantFaceLock.humanoid = localHumanoid
+    BlatantFaceLock.savedAutoRotate = savedAutoRotate
+
+    -- Do not give Shift Lock the body back until after the complete parry
+    -- window. This is the core fix for snapping back before F actually fires.
+    BlatantFaceLock.releaseAt =
+        math.min(
+            now + BLATANT_FACE_MAX_HOLD,
+            math.max(
+                now + BLATANT_FACE_MIN_HOLD,
+                bestBlockExpire
+                    + BLATANT_FACE_AFTER_WINDOW
+            )
+        )
+
+    if AdaptiveTiming
+        and AdaptiveTiming.OnSnap then
+
+        AdaptiveTiming.OnSnap(
+            bestAnimKey,
+            bestCharacter,
+            deltaYaw,
+            bestBlockStart,
+            bestBlockExpire
+        )
+    end
+end
+
+]====]local _h=[====[
+local ShadowStepTech = {
+    BusyUntil = 0,
+    CriticalKey = string.byte("R"),
+}
+
+function ShadowStepTech.GetNumber(name, fallback)
+    local value = GakuranExtraUI and GakuranExtraUI[name]
+    value = tonumber(value)
+    if value == nil then return fallback end
+    return math.max(0, value)
+end
+
+function ShadowStepTech.Trigger(withCritical)
+    local now = os.clock()
+    if now < ShadowStepTech.BusyUntil then return end
+
+    local fDelay = ShadowStepTech.GetNumber("ShadowStepFDelay", 0.000)
+    local chordHold = ShadowStepTech.GetNumber("ShadowStepHold", 0.035)
+    local criticalDelay = ShadowStepTech.GetNumber("ShadowCriticalDelay", 0.255)
+    local criticalHold = ShadowStepTech.GetNumber("ShadowCriticalHold", 0.080)
+
+    local duration = fDelay + chordHold
+        + (withCritical and (criticalDelay + criticalHold) or 0)
+
+    ShadowStepTech.BusyUntil = now + math.max(0.10, duration + 0.035)
+
+    task.spawn(function()
+        if GakuranExtraUI
+            and GakuranExtraUI.CombatAssist
+            and GakuranExtraUI.CombatAssist.MarkDodge then
+            GakuranExtraUI.CombatAssist.MarkDodge("ShadowStep")
+        end
+
+        keypress(DodgeKey)
+
+        if fDelay > 0 then
+            task.wait(fDelay)
+        end
+
+        keypress(ParryKey)
+
+        if chordHold > 0 then
+            task.wait(chordHold)
+        end
+
+        keyrelease(ParryKey)
+        keyrelease(DodgeKey)
+
+        if withCritical then
+            if criticalDelay > 0 then
+                task.wait(criticalDelay)
+            end
+
+            keypress(ShadowStepTech.CriticalKey)
+
+            if criticalHold > 0 then
+                task.wait(criticalHold)
+            end
+
+            keyrelease(ShadowStepTech.CriticalKey)
+        end
+    end)
+end
+
+_G.__GakuranShadowStep = function()
+    ShadowStepTech.Trigger(false)
+end
+
+_G.__GakuranShadowStepCritical = function()
+    ShadowStepTech.Trigger(true)
+end
+
+]====]local _i=[====[
+-- ==========================================================
+-- v7.2 Combat Assist
+-- ==========================================================
+-- Optional features:
+--   * Critical Defense: Default / 50-50 / Dash-CD fallback-to-parry
+--   * Wing Chun Counter Escape (experimental)
+--   * Critical Aim Lock for the LOCAL player's R/M2
+--
+-- All are OFF/default-neutral at startup. Defensive Auto Parry remains the
+-- highest-priority facing/input path.
+
+GakuranExtraUI.CombatAssist = GakuranExtraUI.CombatAssist or {
+    DashReadyAt = 0,
+    CounterEscapeUntil = 0,
+    CounterEscapeTarget = nil,
+    CounterEscapeAnimKey = nil,
+
+    CriticalAimAnimKey = nil,
+    CriticalAimTarget = nil,
+    CriticalAimTargetRoot = nil,
+}
+
+function GakuranExtraUI.CombatAssist.GetNumber(name, fallback)
+    local value = tonumber(GakuranExtraUI[name])
+    if value == nil then
+        return fallback
+    end
+    return value
+end
+
+function GakuranExtraUI.CombatAssist.MarkDodge(source)
+    local cooldown = math.max(
+        0.10,
+        GakuranExtraUI.CombatAssist.GetNumber(
+            "CriticalDashCooldownEstimate",
+            2.00
+        )
+    )
+
+    GakuranExtraUI.CombatAssist.DashReadyAt =
+        os.clock() + cooldown
+
+    GakuranExtraUI.CombatAssist.LastDodgeSource =
+        tostring(source or "unknown")
+end
+
+function GakuranExtraUI.CombatAssist.DashReady()
+    return os.clock()
+        >= (GakuranExtraUI.CombatAssist.DashReadyAt or 0)
+end
+
+function GakuranExtraUI.CombatAssist.IsHeavy(attackConfig)
+    if not attackConfig then return false end
+
+    local name = tostring(attackConfig.DisplayName or "")
+    return attackConfig.Heavy == true
+        or name == "M2"
+        or name == "M2Right"
+        or name == "Heavy"
+        or name == "MomentumM2"
+        or name == "Whirlwind"
+        or string.find(name, "M2", 1, true) ~= nil
+end
+
+function GakuranExtraUI.CombatAssist.IsWingChunCounter(attackConfig)
+    if not attackConfig then
+        return false
+    end
+
+    local style = tostring(attackConfig.Style or "")
+    local name = tostring(attackConfig.DisplayName or "")
+
+    return (style == "WingChun" or style == "WingChunAnims")
+        and name == "M2"
+end
+
+function Gaku
