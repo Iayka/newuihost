@@ -1,0 +1,101 @@
+_W=[[function Dodge()
+    --keyrelease(DodgeKey)]]_t=_k(_t,_W,[[function Dodge()
+    if GakuranExtraUI
+        and GakuranExtraUI.CombatAssist
+        and GakuranExtraUI.CombatAssist.MarkDodge then
+        GakuranExtraUI.CombatAssist.MarkDodge("AutoDodge")
+    end
+    --keyrelease(DodgeKey)]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,100,111,100,103,101,32,116,114,97,99,107,105,110,103,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end end do local _X=[[    if attackConfig.Jump then]]local _Y=_k(_t,_X,[[    if isHeavy
+        and GakuranExtraUI
+        and GakuranExtraUI.CombatAssist
+        and GakuranExtraUI.CombatAssist.HandleHeavy
+        and GakuranExtraUI.CombatAssist.HandleHeavy(
+            regData,
+            attackConfig
+        ) then
+        -- handled by optional Critical Defense mode
+    elseif attackConfig.Jump then]])if _Y then _t=_Y print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,99,114,105,116,105,99,97,108,32,100,101,102,101,110,115,101,32,112,97,116,99,104,101,100))else print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,119,97,114,110,105,110,103,58,32,99,114,105,116,105,99,97,108,32,100,101,102,101,110,115,101,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100,59,32,99,111,110,116,105,110,117,105,110,103,32,119,105,116,104,32,100,101,102,97,117,108,116,32,99,114,105,116,105,99,97,108,32,104,97,110,100,108,105,110,103))end end do local _Z=[[    local regData = UpdateAnimationRegistry(animKey, anim, now, anim.TimePosition or 0, attackConfig, character)
+    AdaptiveTiming.Observe(regData, attackConfig, anim, character, now, animKey)
+    if regData.Processed then return end]]_t=_k(_t,_Z,[[    local regData = UpdateAnimationRegistry(animKey, anim, now, anim.TimePosition or 0, attackConfig, character)
+    AdaptiveTiming.Observe(regData, attackConfig, anim, character, now, animKey)
+
+    if GakuranExtraUI
+        and GakuranExtraUI.CombatAssist
+        and GakuranExtraUI.CombatAssist.IsWingChunCounter
+        and GakuranExtraUI.CombatAssist.IsWingChunCounter(
+            attackConfig
+        ) then
+
+        if GakuranExtraUI.CombatAssist.HandleWingChunCounter then
+            GakuranExtraUI.CombatAssist.HandleWingChunCounter(
+                character,
+                localCharacter,
+                localRoot,
+                attackConfig,
+                anim
+            )
+        end
+
+        return
+    end
+
+    if regData.Processed then return end]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,87,105,110,103,32,67,104,117,110,32,99,111,117,110,116,101,114,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end end do local _aa=[[UIS.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessedEvent then warn("NO") return end]]_t=_k(_t,_aa,[[UIS.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessedEvent then warn("NO") return end
+
+    if input.KeyCode == string.byte("q")
+        and GakuranExtraUI
+        and GakuranExtraUI.CombatAssist
+        and GakuranExtraUI.CombatAssist.MarkDodge then
+
+        GakuranExtraUI.CombatAssist.MarkDodge("ManualQ")
+    end]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,109,97,110,117,97,108,32,100,97,115,104,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end end do local _ba=[[        ProcessEspAndLogging()]]_t=_k(_t,_ba,[[        if not (
+            GakuranExtraUI
+            and GakuranExtraUI.LowLagMode
+            and GakuranExtraUI.LowLagMode.Get
+            and GakuranExtraUI.LowLagMode.Get()
+        ) then
+            ProcessEspAndLogging()
+        end]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,76,111,119,32,76,97,103,32,69,83,80,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end end do local _ca=[[    local optimalReactionTime = (attackConfig.ReactionTime or DefaultReactionTime)]]_t=_k(_t,_ca,[[    local optimalReactionTime = (
+        attackConfig.ReactionTime
+        or attackConfig.DefaultReactionTime
+        or DefaultReactionTime
+    )
+
+    -- Learned values are additive and never overwrite the base style config.
+    if AdaptiveTiming and AdaptiveTiming.GetAdjustment then
+        optimalReactionTime += AdaptiveTiming.GetAdjustment(attackConfig)
+    end]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,76,101,97,114,110,105,110,103,32,77,111,100,101,32,116,105,109,105,110,103,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end end local _da=string.char(108,111,99,97,108,32,102,117,110,99,116,105,111,110,32,69,118,97,108,117,97,116,101,80,97,114,114,121,84,114,105,103,103,101,114,115,40,41)_t=_k(_t,_da,string.char(108,111,99,97,108,32,66,108,97,116,97,110,116,70,97,99,101,84,104,114,101,97,116,67,104,97,114,97,99,116,101,114,32,61,32,110,105,108,10).._da)if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,83,110,97,112,32,76,111,99,107,32,116,104,114,101,97,116,32,98,114,105,100,103,101,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _ea=[[    -- CHARACTER ITERATION
+    for _, character in ipairs(TargetCharacters) do
+        EvaluateCharacter(character, localCharacter, localRoot, currentActiveIds)
+    end]]_t=_k(_t,_ea,[[    -- CHARACTER ITERATION
+    if BlatantFaceThreatCharacter
+        and BlatantFaceThreatCharacter ~= localCharacter
+        and BlatantFaceThreatCharacter.ClassName == "Model" then
+        EvaluateCharacter(
+            BlatantFaceThreatCharacter,
+            localCharacter,
+            localRoot,
+            currentActiveIds
+        )
+    else
+        for _, character in ipairs(TargetCharacters) do
+            EvaluateCharacter(character, localCharacter, localRoot, currentActiveIds)
+        end
+    end]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,83,110,97,112,32,76,111,99,107,32,65,80,32,116,104,114,101,97,116,32,105,116,101,114,97,116,105,111,110,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _fa=string.char(108,111,99,97,108,32,102,117,110,99,116,105,111,110,32,77,97,105,110,76,111,111,112,40,41)_t=_k(_t,_fa,_h.._g.._i.._fa)if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,83,110,97,112,32,76,111,99,107,32,114,117,110,116,105,109,101,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _ga=[[    LocalTracker:Update(localChar)
+    EvaluateParryTriggers()]]_t=_k(_t,_ga,[[    table.clear(FrameAnimationCache)
+    local localAnimations = LocalTracker:Update(localChar)
+
+    if GakuranExtraUI
+        and GakuranExtraUI.CombatAssist
+        and GakuranExtraUI.CombatAssist.Task then
+        GakuranExtraUI.CombatAssist.Task(
+            localChar,
+            localAnimations
+        )
+    end
+
+    -- Defensive Snap/Parry runs after offensive aim helpers, so parry wins any
+    -- same-frame facing conflict.
+    BlatantFaceTask()
+    EvaluateParryTriggers()]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,109,97,105,110,45,108,111,111,112,32,83,110,97,112,32,76,111,99,107,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _ha,_ia=loadstring(_t)if not _ha then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,99,111,109,112,105,108,101,32,102,97,105,108,101,100,58,32)..tostring(_ia))return end if rawget(_G,string.char(95,95,71,97,107,117,114,97,110,67,111,109,98,105,110,101,100,67,111,109,112,105,108,101,79,110,108,121))==true then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,99,111,109,112,105,108,101,32,99,104,101,99,107,32,112,97,115,115,101,100))return end local _ja=rawget(_G,_c)if type(_ja)==string.char(116,97,98,108,101)and _ja.jobId==game.JobId then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,97,108,114,101,97,100,121,32,108,111,97,100,101,100,32,105,110,32,116,104,105,115,32,77,97,116,99,104,97,32,115,101,115,115,105,111,110,59,32)..string.char(114,101,115,116,97,114,116,32,77,97,116,99,104,97,32,98,101,102,111,114,101,32,108,111,97,100,105,110,103,32,97,110,111,116,104,101,114,32,71,97,107,117,114,97,110,32,98,117,105,108,100))return end _G[_c]={jobId=game.JobId,version=string.char(97,112,45,111,110,108,121,45,118,55,46,50,46,53,45,117,105,45,99,114,101,97,116,101,119,105,110,100,111,119,45,102,105,120),}local _ka,_la=pcall(_ha)if not _ka then _G[_c]=nil print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,114,117,110,116,105,109,101,32,102,97,105,108,101,100,58,32)..tostring(_la))return end print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,108,111,97,100,101,100,32,118,55,46,50,46,53,32,43,32,85,73,32,108,111,97,100,101,114,32,102,105,120))
