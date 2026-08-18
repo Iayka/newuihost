@@ -1,0 +1,179 @@
+char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,97,117,116,111,45,112,97,114,114,121,32,116,114,97,99,107,101,114,32,105,109,112,111,114,116,32,102,111,114,109,97,116,32,99,104,97,110,103,101,100))return end do local _w=[[local UI_Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/neaxusxgod-png/INS-ui/main/uilib.min.lua"))() or INSui]]local _x=[[local _gakuranUiSource = game:HttpGet("https://raw.githubusercontent.com/neaxusxgod-png/INS-ui/main/uilib.min.lua")
+local _gakuranUiChunk, _gakuranUiCompileError = loadstring(_gakuranUiSource)
+local UI_Library = nil
+
+if _gakuranUiChunk then
+    local _gakuranUiOk, _gakuranUiResult = pcall(_gakuranUiChunk)
+    if _gakuranUiOk then
+        UI_Library = _gakuranUiResult
+    else
+        warn("[Gakuran UI] INS-ui runtime error: " .. tostring(_gakuranUiResult))
+    end
+else
+    warn("[Gakuran UI] INS-ui compile error: " .. tostring(_gakuranUiCompileError))
+end
+
+-- Current INS-ui publishes the library as INSUI. Keep the old casing too in
+-- case an older build is already present in the executor environment.
+if not UI_Library then
+    pcall(function()
+        if getgenv then
+            UI_Library =
+                rawget(getgenv(), "INSUI")
+                or rawget(getgenv(), "INSui")
+        end
+    end)
+end
+
+UI_Library =
+    UI_Library
+    or rawget(_G, "INSUI")
+    or rawget(_G, "INSui")
+
+if not UI_Library or type(UI_Library.CreateWindow) ~= "function" then
+    error("INS-ui failed to load: CreateWindow missing")
+end]]local _y=_k(_t,_w,_x)if _y then _t=_y print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,85,73,32,108,111,97,100,101,114,32,112,97,116,99,104,101,100))else print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,85,73,32,108,111,97,100,101,114,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end end local _z=string.char(71,97,109,101,67,111,110,102,105,103,32,61,32,70,108,97,116,116,101,110,101,100,67,111,110,102,105,103)_t=_k(_t,_z,_z.._e)if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,102,108,97,116,116,101,110,101,100,32,71,97,109,101,67,111,110,102,105,103,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _A=0 _t,_A=string.gsub(_t,string.char(105,102,37,115,43,118,37,115,42,126,61,37,115,42,68,101,102,97,117,108,116,82,101,97,99,116,105,111,110,84,105,109,101,37,115,43,116,104,101,110,37,115,43,73,110,102,111,37,46,82,101,97,99,116,105,111,110,84,105,109,101,37,115,42,61,37,115,42,118,37,115,43,101,110,100),string.char(73,110,102,111,46,82,101,97,99,116,105,111,110,84,105,109,101,32,61,32,118),1)if _A==0 then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,119,97,114,110,105,110,103,58,32,114,101,97,99,116,105,111,110,32,115,108,105,100,101,114,32,99,97,108,108,98,97,99,107,32,112,97,116,99,104,32,115,107,105,112,112,101,100,59,32,99,111,110,116,105,110,117,105,110,103))else print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,114,101,97,99,116,105,111,110,32,115,108,105,100,101,114,32,99,97,108,108,98,97,99,107,32,112,97,116,99,104,101,100))end local _B=[[    if not AnimationRegistry[animKey] then
+        local adjustedNow = now - ConstLatency -- - currentTrackTime
+        local BlockStart, BlockExpire = CalculateParryTiming(attackConfig, adjustedNow, TargetCharacter)]]_t=_k(_t,_B,[[    if not AnimationRegistry[animKey] then
+        local playbackSpeed = math.abs(tonumber(anim.Speed) or 1)
+        if playbackSpeed < 0.05 then playbackSpeed = 1 end
+        local elapsedReal = math.max(tonumber(currentTrackTime) or 0, 0) / playbackSpeed
+        local adjustedNow = now - elapsedReal - ConstLatency
+        local BlockStart, BlockExpire = CalculateParryTiming(attackConfig, adjustedNow, TargetCharacter)]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,97,110,105,109,97,116,105,111,110,32,114,101,103,105,115,116,114,121,32,115,116,97,114,116,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _C=0 _t,_C=string.gsub(_t,string.char(108,111,99,97,108,37,115,43,66,108,111,99,107,83,116,97,114,116,44,37,115,42,66,108,111,99,107,69,120,112,105,114,101,37,115,42,61,37,115,42,67,97,108,99,117,108,97,116,101,80,97,114,114,121,84,105,109,105,110,103,37,40,37,115,42,97,116,116,97,99,107,67,111,110,102,105,103,44,37,115,42,110,111,119,37,115,42,37,45,37,115,42,99,117,114,114,101,110,116,84,114,97,99,107,84,105,109,101,44,37,115,42,84,97,114,103,101,116,67,104,97,114,97,99,116,101,114,37,115,42,37,41),[[local playbackSpeed = math.abs(tonumber(anim.Speed) or 1)
+        if playbackSpeed < 0.05 then playbackSpeed = 1 end
+        local elapsedReal = math.max(tonumber(currentTrackTime) or 0, 0) / playbackSpeed
+        local adjustedNow = now - elapsedReal - ConstLatency
+        local BlockStart, BlockExpire = CalculateParryTiming(attackConfig, adjustedNow, TargetCharacter)]],1)local _D=0 if _C>0 then _t,_D=string.gsub(_t,string.char(114,101,103,68,97,116,97,37,46,83,116,97,114,116,84,105,109,101,37,115,42,61,37,115,42,110,111,119,37,115,42,37,45,37,115,42,67,111,110,115,116,76,97,116,101,110,99,121,91,94,13,10,93,42),string.char(114,101,103,68,97,116,97,46,83,116,97,114,116,84,105,109,101,32,61,32,97,100,106,117,115,116,101,100,78,111,119),1)end if _C==0 then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,119,97,114,110,105,110,103,58,32,97,110,105,109,97,116,105,111,110,32,114,101,103,105,115,116,114,121,32,108,111,111,112,32,116,105,109,105,110,103,32,112,97,116,99,104,32,115,107,105,112,112,101,100,59,32,99,111,110,116,105,110,117,105,110,103))elseif _D==0 then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,119,97,114,110,105,110,103,58,32,97,110,105,109,97,116,105,111,110,32,114,101,103,105,115,116,114,121,32,108,111,111,112,32,83,116,97,114,116,84,105,109,101,32,112,97,116,99,104,32,115,107,105,112,112,101,100,59,32,99,111,110,116,105,110,117,105,110,103))else print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,97,110,105,109,97,116,105,111,110,32,114,101,103,105,115,116,114,121,32,108,111,111,112,32,116,105,109,105,110,103,32,112,97,116,99,104,101,100))end _t=_k(_t,string.char(108,111,99,97,108,32,72,101,105,103,104,116,84,111,103,103,108,101),string.char(108,111,99,97,108,32,72,101,105,103,104,116,84,111,103,103,108,101,10,108,111,99,97,108,32,71,97,107,117,114,97,110,69,120,116,114,97,85,73,32,61,32,123,125))if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,83,110,97,112,32,76,111,99,107,32,115,116,97,116,101,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _E=[[local Config_Tab = UI_Window:Tab("Style Configurations", "swords")]]_t=_k(_t,_E,_E..[[
+local Blatant_Tab = UI_Window:Tab("Combat", "swords")]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,67,111,109,98,97,116,32,116,97,98,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _F=[[local Folders_Section   = AP_Tab:Section("Folders", "Right")]]_t=_k(_t,_F,_F..[[
+local Combat_Section = Blatant_Tab:Section("Combat", "Left")
+local Movement_Section = Blatant_Tab:Section("Movement", "Left")
+local Performance_Section = Blatant_Tab:Section("Performance", "Right")
+local TimingDiag_Section = Blatant_Tab:Section("Timing", "Right")]])if not _t then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,67,111,109,98,97,116,32,115,101,99,116,105,111,110,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _H=[[    HeightToggle = AP_Section:Toggle("Height Multiplier (May crash some users)", true)]]_t=_k(_t,_H,_H..[[
+    -- Combat
+    GakuranExtraUI.SnapToggle =
+        Combat_Section:Toggle("Snap Lock", false)
+    GakuranExtraUI.SnapToggle:AddKeybind("h", "Toggle")
+    Combat_Section:Label("Keeps you facing them until F goes off. Bind: H")
+
+    GakuranExtraUI.CriticalDefenseMode = "Default"
+    local criticalDefenseDropdown = Combat_Section:Dropdown(
+        "Crit Defense",
+        nil,
+        {
+            "Normal",
+            "50/50 F/Q",
+            "Q CD = F",
+        },
+        false,
+        function(list)
+            local shown = list and list[1] or "Normal"
+
+            if shown == "50/50 F/Q" then
+                GakuranExtraUI.CriticalDefenseMode =
+                    "50/50 Parry/Dodge"
+            elseif shown == "Q CD = F" then
+                GakuranExtraUI.CriticalDefenseMode =
+                    "Dash CD -> Parry"
+            else
+                GakuranExtraUI.CriticalDefenseMode =
+                    "Default"
+            end
+        end
+    )
+    criticalDefenseDropdown:Set({"Normal"})
+
+    GakuranExtraUI.CriticalDashCooldownEstimate = 2.00
+    local criticalDashCooldownSlider = Combat_Section:Slider(
+        "Q Cooldown",
+        0,
+        0.05,
+        0.25,
+        3.00,
+        "s",
+        function(v)
+            GakuranExtraUI.CriticalDashCooldownEstimate = v
+        end
+    )
+    criticalDashCooldownSlider:Set(2.00)
+
+    GakuranExtraUI.WingChunCounterEscape =
+        Combat_Section:Toggle(
+            "Wing Chun Counter Fake Wiff",
+            false
+        )
+
+    GakuranExtraUI.WingChunEscapeHold = 0.18
+    local wingChunEscapeSlider = Combat_Section:Slider(
+        "Fake Wiff Time",
+        0,
+        0.01,
+        0.08,
+        0.35,
+        "s",
+        function(v)
+            GakuranExtraUI.WingChunEscapeHold = v
+        end
+    )
+    wingChunEscapeSlider:Set(0.18)
+    Combat_Section:Label("Turns your M1 away from Wing Chun M2 so the counter misses.")
+
+    GakuranExtraUI.CriticalAimLock =
+        Combat_Section:Toggle("Crit Aim", false)
+
+    GakuranExtraUI.CriticalAimRange = 12
+    local criticalAimRangeSlider = Combat_Section:Slider(
+        "Crit Aim Range",
+        12,
+        1,
+        4,
+        30,
+        "studs",
+        function(v)
+            GakuranExtraUI.CriticalAimRange = v
+        end
+    )
+    criticalAimRangeSlider:Set(12)
+    Combat_Section:Label("Faces your target while your R/crit is playing.")
+
+    -- Movement
+    Movement_Section:Label("Z = Shadow Step | B = Shadow Crit")
+
+    GakuranExtraUI.ShadowStepFDelay = 0.000
+    GakuranExtraUI.ShadowStepHold = 0.035
+    GakuranExtraUI.ShadowCriticalDelay = 0.255
+    GakuranExtraUI.ShadowCriticalHold = 0.080
+
+    GakuranExtraUI.ShadowFDelaySlider = Movement_Section:Slider(
+        "Q > F Delay", 0, 0.005, 0, 0.080, "s",
+        function(v)
+            GakuranExtraUI.ShadowStepFDelay = v
+        end
+    )
+    GakuranExtraUI.ShadowFDelaySlider:Set(0.000)
+
+    GakuranExtraUI.ShadowHoldSlider = Movement_Section:Slider(
+        "Q+F Hold", 0, 0.005, 0.010, 0.120, "s",
+        function(v)
+            GakuranExtraUI.ShadowStepHold = v
+        end
+    )
+    GakuranExtraUI.ShadowHoldSlider:Set(0.035)
+
+    GakuranExtraUI.ShadowCriticalDelaySlider = Movement_Section:Slider(
+        "R Delay", 0, 0.005, 0.030, 0.300, "s",
+        function(v)
+            GakuranExtraUI.ShadowCriticalDelay = v
+        end
+    )
+    GakuranExtraUI.ShadowCriticalDelaySlider:Set(0.255)
+
+    GakuranExtraUI.ShadowCriticalHoldSlider = Movement_Section:Slider(
+        "R Hold", 0, 0.005, 0.030, 0.200, "s",
+        function(v)
+            GakuranExtraUI.ShadowCriticalHold = v
+        end
+    )
+    GakuranExtraUI.ShadowCriticalHoldSlider:Set(0.080)
+
+    GakuranExtraUI.ShadowStepAction =
+        Movement_Section:Toggle("Shadow St
