@@ -1,6 +1,6 @@
 -- Loader for the exact Lua script supplied by the user.
 -- The script is split into raw text chunks only because of GitHub connector
--- upload-size limits. The chunks are concatenated byte-for-byte before running.
+-- upload-size limits. The chunks are concatenated before running.
 
 local BASE = "https://raw.githubusercontent.com/Iayka/newuihost/main/parts/"
 local PARTS = {
@@ -28,6 +28,21 @@ for i, fileName in ipairs(PARTS) do
 end
 
 local source = table.concat(chunks)
+
+-- Upstream Gakuran changed its UI host from neaxusxgod-png/INS-ui to
+-- artxficial/INS-ui. The shared wrapper searches for that exact upstream
+-- loader line, so update only the wrapper's search marker before compiling.
+-- The replacement UI payload inside the shared script is left untouched.
+local oldMarker = 'local _w=[[local UI_Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/neaxusxgod-png/INS-ui/main/uilib.min.lua"))() or INSui]]'
+local newMarker = 'local _w=[[local UI_Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/artxficial/INS-ui/main/uilib.min.lua"))() or INSui]]'
+
+local markerStart, markerEnd = string.find(source, oldMarker, 1, true)
+if markerStart then
+    source = string.sub(source, 1, markerStart - 1)
+        .. newMarker
+        .. string.sub(source, markerEnd + 1)
+end
+
 local chunk, compileError = loadstring(source)
 
 if not chunk then
