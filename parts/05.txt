@@ -1,0 +1,365 @@
+ .. row.Attack
+    local history = AdaptiveTiming.History[key]
+
+    if not history
+        or #history < settings.MinSamples then
+        row.LearningState =
+            "collecting "
+            .. tostring(history and #history or 0)
+            .. "/"
+            .. tostring(settings.MinSamples)
+        return
+    end
+
+    local sampleCount =
+        math.min(#history, settings.WindowSamples)
+
+    local startIndex = #history - sampleCount + 1
+    local successCount = 0
+    local missCount = 0
+    local missDriftSum = 0
+    local positiveMissDrift = 0
+    local negativeMissDrift = 0
+
+    for i = startIndex, #history do
+        local sample = history[i]
+
+        if sample.Success then
+            successCount += 1
+        else
+            missCount += 1
+            missDriftSum += sample.Drift
+
+            if sample.Drift >= settings.DriftThreshold then
+                positiveMissDrift += 1
+            elseif sample.Drift <= -settings.DriftThreshold then
+                negativeMissDrift += 1
+            end
+        end
+    end
+
+    local successRate = successCount / sampleCount
+    local missRate = missCount / sampleCount
+
+    if successRate >= settings.StableSuccessRate then
+        row.LearningState =
+            string.format("stable %.0f%%", successRate * 100)
+        return
+    end
+
+    if missCount < settings.MinMisses
+        or missRate < settings.MinMissRate then
+        row.LearningState =
+            string.format("watching %.0f%% success", successRate * 100)
+        return
+    end
+
+    local meta = AdaptiveTiming.Meta[key] or {
+        LastAdjustedSample = 0,
+    }
+
+    AdaptiveTiming.Meta[key] = meta
+
+    if (#history - meta.LastAdjustedSample)
+        < settings.MinNewSamplesBetweenAdjustments then
+        row.LearningState = "waiting for more samples"
+        return
+    end
+
+    local averageMissDrift = missDriftSum / missCount
+    local dominantCount =
+        math.max(positiveMissDrift, negativeMissDrift)
+
+    local consistency = dominantCount / missCount
+
+    if math.abs(averageMissDrift) < settings.DriftThreshold
+        or consistency < settings.ConsistencyRatio then
+        row.LearningState = "miss direction inconsistent"
+        return
+    end
+
+    local current =
+        AdaptiveTiming.StoredAdjustment({
+            Style = row.Style,
+            DisplayName = row.Attack,
+        })
+
+    local step = 0
+
+    -- Positive drift means the real F event is consistently later than the
+    -- requested timing on misses, so move the requested reaction slightly earlier.
+    if averageMissDrift > 0 then
+        step = -settings.Step
+    elseif averageMissDrift < 0 then
+        step = settings.Step
+    end
+
+    local newValue = math.clamp(
+        current + step,
+        -settings.MaxAdjustment,
+        settings.MaxAdjustment
+    )
+
+    if math.abs(newValue - current) < 0.0001 then
+        row.LearningState = "adjustment limit reached"
+        return
+    end
+
+    AdaptiveTiming.SetAdjustment({
+        Style = row.Style,
+        DisplayName = row.Attack,
+    }, newValue)
+
+    meta.LastAdjustedSample = #history
+    row.StoredLearnedAdjustment = newValue
+    row.LearningState =
+        string.format(
+            "adjusted %+.3f -> total %+.3f",
+            step,
+            newValue
+        )
+
+    print(string.format(
+        "[LEARNING] %s | %s | samples=%d success=%.0f%% missDrift=%+.4f | step=%+.3f | learned=%+.3f",
+        row.Style,
+        row.Attack,
+        sampleCount,
+        successRate * 100,
+        averageMissDrift,
+        step,
+        newValue
+    ))
+end
+
+function AdaptiveTiming.Finish(outcome, preferredRegData)
+    local regData =
+        preferredRegData or AdaptiveTiming.InputRegData
+
+    local row =
+        regData and AdaptiveTiming.ByRegData[regData]
+
+    if not row or row.Finalized then
+        return
+    end
+
+    row.Finalized = true
+    row.Outcome = outcome
+    row.EndClock = os.clock()
+
+    if regData.StartTime then
+        row.EndRel =
+            row.EndClock - regData.StartTime
+    end
+
+    if row.InputRel and row.RequestedBlockRel then
+        row.TimingError =
+            row.InputRel - row.RequestedBlockRel
+    end
+
+    AdaptiveTiming.PushHistory(row)
+    AdaptiveTiming.EvaluateLearning(row)
+
+    print(string.format(
+        "[TIMING-DIAG][RESULT] #%d | %s | %s | Outcome=%s | Base=%s | Learned=%s | Effective=%s | F=%s | Error=%s | Snap=%s | Corrections=%s | Learning=%s",
+        row.Index,
+        row.Style,
+        row.Attack,
+        tostring(outcome),
+        AdaptiveTiming.Fmt(row.BaseReaction),
+        AdaptiveTiming.Fmt(row.AppliedLearnedAdjustment),
+        AdaptiveTiming.Fmt(row.EffectiveReaction),
+        AdaptiveTiming.Fmt(row.InputRel),
+        AdaptiveTiming.Fmt(row.TimingError),
+        tostring(row.SnapUsed),
+        tostring(row.SnapCorrections or 0),
+        tostring(row.LearningState or "-")
+    ))
+
+    if AdaptiveTiming.InputRegData == regData then
+        AdaptiveTiming.InputRegData = nil
+    end
+
+    if AdaptiveTiming.PendingCustomRegData == regData then
+        AdaptiveTiming.PendingCustomRegData = nil
+        AdaptiveTiming.PendingCustomUntil = 0
+    end
+end
+
+function AdaptiveTiming.BuildClipboard()
+    local lines = {
+        table.concat({
+            "Index",
+            "Style",
+            "Attack",
+            "AnimationId",
+            "Target",
+            "BaseReaction",
+            "StoredLearnedAdjustment",
+            "AppliedLearnedAdjustment",
+            "EffectiveReaction",
+            "FirstSeenTrack",
+            "FirstSeenSpeed",
+            "BlockStartRel",
+            "BlockExpireRel",
+            "TrackAtTrigger",
+            "SpeedAtTrigger",
+            "RequestedBlockRel",
+            "BlockCallRel",
+            "InputRel",
+            "TimingError",
+            "ParryRegisteredRel",
+            "InputLatency",
+            "CustomParryFunction",
+            "SnapUsed",
+            "SnapTarget",
+            "SnapYawDegrees",
+            "SnapCorrections",
+            "LearningState",
+            "Outcome",
+        }, "\t")
+    }
+
+    for _, row in ipairs(AdaptiveTiming.Rows) do
+        local animationStart = row.AnimationStart
+
+        local blockStartRel = (
+            animationStart
+            and row.BlockStart
+            and (row.BlockStart - animationStart)
+        ) or nil
+
+        local blockExpireRel = (
+            animationStart
+            and row.BlockExpire
+            and (row.BlockExpire - animationStart)
+        ) or nil
+
+        table.insert(lines, table.concat({
+            tostring(row.Index or ""),
+            tostring(row.Style or ""),
+            tostring(row.Attack or ""),
+            tostring(row.AnimationId or ""),
+            tostring(row.Target or ""),
+            AdaptiveTiming.Fmt(row.BaseReaction),
+            AdaptiveTiming.Fmt(row.StoredLearnedAdjustment),
+            AdaptiveTiming.Fmt(row.AppliedLearnedAdjustment),
+            AdaptiveTiming.Fmt(row.EffectiveReaction),
+            AdaptiveTiming.Fmt(row.FirstSeenTrack),
+            AdaptiveTiming.Fmt(row.FirstSeenSpeed),
+            AdaptiveTiming.Fmt(blockStartRel),
+            AdaptiveTiming.Fmt(blockExpireRel),
+            AdaptiveTiming.Fmt(row.TrackAtTrigger),
+            AdaptiveTiming.Fmt(row.SpeedAtTrigger),
+            AdaptiveTiming.Fmt(row.RequestedBlockRel),
+            AdaptiveTiming.Fmt(row.BlockCallRel),
+            AdaptiveTiming.Fmt(row.InputRel),
+            AdaptiveTiming.Fmt(row.TimingError),
+            AdaptiveTiming.Fmt(row.ParryRegisteredRel),
+            AdaptiveTiming.Fmt(row.InputLatency),
+            tostring(row.CustomParryFunction == true),
+            tostring(row.SnapUsed == true),
+            tostring(row.SnapTarget or "-"),
+            AdaptiveTiming.Fmt(row.SnapYawDegrees),
+            tostring(row.SnapCorrections or 0),
+            tostring(row.LearningState or "-"),
+            tostring(row.Outcome or "INCOMPLETE"),
+        }, "\t"))
+    end
+
+    return table.concat(lines, string.char(10))
+end
+
+function AdaptiveTiming.BuildLearnedClipboard()
+    local lines = {
+        table.concat({
+            "Style",
+            "Attack",
+            "LearnedAdjustment",
+        }, "\t")
+    }
+
+    local styles = {}
+    for style in pairs(AdaptiveTiming.Learned) do
+        table.insert(styles, style)
+    end
+    table.sort(styles)
+
+    for _, style in ipairs(styles) do
+        local attacks = {}
+        for attack in pairs(AdaptiveTiming.Learned[style]) do
+            table.insert(attacks, attack)
+        end
+        table.sort(attacks)
+
+        for _, attack in ipairs(attacks) do
+            table.insert(lines, table.concat({
+                tostring(style),
+                tostring(attack),
+                AdaptiveTiming.Fmt(
+                    AdaptiveTiming.Learned[style][attack]
+                ),
+            }, "\t"))
+        end
+    end
+
+    return table.concat(lines, string.char(10))
+end
+
+_G.__GakuranTimingDiagnosticsCopy = function()
+    local output = AdaptiveTiming.BuildClipboard()
+
+    if setclipboard then
+        setclipboard(output)
+        print(string.format(
+            "[TIMING-DIAG] copied %d samples",
+            #AdaptiveTiming.Rows
+        ))
+    else
+        print(output)
+    end
+end
+
+_G.__GakuranTimingDiagnosticsClear = function()
+    table.clear(AdaptiveTiming.Rows)
+    table.clear(AdaptiveTiming.ByRegData)
+    table.clear(AdaptiveTiming.RowByAnimKey)
+    table.clear(AdaptiveTiming.SnapByAnimKey)
+
+    AdaptiveTiming.InputRegData = nil
+    AdaptiveTiming.PendingCustomRegData = nil
+    AdaptiveTiming.PendingCustomUntil = 0
+
+    print("[TIMING-DIAG] cleared samples")
+end
+
+_G.__GakuranLearningReset = function()
+    table.clear(AdaptiveTiming.Learned)
+    table.clear(AdaptiveTiming.History)
+    table.clear(AdaptiveTiming.Meta)
+    _G.__GakuranLearnedTimingValues = AdaptiveTiming.Learned
+    print("[LEARNING] reset all learned timing adjustments to 0")
+end
+
+_G.__GakuranLearningCopy = function()
+    local output = AdaptiveTiming.BuildLearnedClipboard()
+
+    if setclipboard then
+        setclipboard(output)
+        print("[LEARNING] copied learned timing adjustments")
+    else
+        print(output)
+    end
+end
+
+_G.__GakuranTimingDiagnosticsGet = function()
+    return AdaptiveTiming.Rows
+end
+
+]====]local function _k(_l,_m,_n)local _o,_p=string.find(_l,_m,1,true)if not _o then return nil end return string.sub(_l,1,_o-1).._n..string.sub(_l,_p+1)end local _q=game:HttpGet(_b)local _r=string.char(108,111,99,97,108,32,75,110,111,119,110,79,102,102,115,101,116,115,32,61,32,123)_q=_k(_q,_r,_d.._r)if not _q then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,97,110,105,109,97,116,105,111,110,32,116,114,97,99,107,101,114,32,102,111,114,109,97,116,32,99,104,97,110,103,101,100))return end local _s=[[            local liveTime = GetTimePosition(address) or info.TimePosition
+            info.TimePosition = liveTime]]_q=_k(_q,_s,[[            local liveTime = GetTimePosition(address) or info.TimePosition
+            info.TimePosition = liveTime
+            local liveSpeed = memory_read("float", address + KnownOffsets.Speed)
+            if liveSpeed then
+                info.Speed = liveSpeed
+            end]])if not _q then print(string.char(91,71,97,107,117,114,97,110,32,65,80,32,83,104,97,114,101,93,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,32,97,110,105,109,97,116,105,111,110,32,116,114,97,99,107,101,114,32,115,112,101,101,100,32,109,97,114,107,101,114,32,99,104,97,110,103,101,100))return end local _t=game:HttpGet(_a)local _u=[[local URL = "https://raw.githubusercontent.com/artxficial/matchastuff/main/animationtracker.lua"
+local ImportAnimationTracker = loadstring(game:HttpGet(URL))()]]local _v=string.char(108,111,99,97,108,32,73,109,112,111,114,116,65,110,105,109,97,116,105,111,110,84,114,97,99,107,101,114,32,61,32,108,111,97,100,115,116,114,105,110,103,40)..string.format(string.char(37,113),_q)..string.char(41,40,41)_t=_k(_t,_u,_v)if not _t then print(string.
