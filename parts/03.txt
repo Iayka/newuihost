@@ -1,0 +1,459 @@
+ranExtraUI.CombatAssist.HandleHeavy(regData, attackConfig)
+    local mode = tostring(
+        GakuranExtraUI.CriticalDefenseMode or "Default"
+    )
+
+    if mode == "Default" then
+        return false
+    end
+
+    -- Every non-default mode owns the critical decision so upstream Auto Dodge
+    -- cannot immediately override it.
+    if mode == "50/50 Parry/Dodge" then
+        -- Use the registry's already-stable per-animation random number so the
+        -- choice cannot flip back and forth across render frames.
+        if AutoDodgeToggle.Get()
+            and (tonumber(regData.RandomNum) or 100) <= 50 then
+
+            Dodge()
+        else
+            if LastPendingRegData ~= regData then
+                LastPendingRegData = regData
+            end
+            BlockStart(regData.BlockStart)
+        end
+
+        return true
+    end
+
+    if mode == "Dash CD -> Parry" then
+        if AutoDodgeToggle.Get()
+            and GakuranExtraUI.CombatAssist.DashReady() then
+
+            Dodge()
+        else
+            if LastPendingRegData ~= regData then
+                LastPendingRegData = regData
+            end
+            BlockStart(regData.BlockStart)
+        end
+
+        return true
+    end
+
+    return false
+end
+
+function GakuranExtraUI.CombatAssist.GetYawForDirection(direction)
+    local flat = Vector3.new(direction.X, 0, direction.Z)
+    if flat.Magnitude <= 0.001 then
+        return nil
+    end
+
+    flat = flat.Unit
+    return math.atan2(-flat.X, -flat.Z)
+end
+
+function GakuranExtraUI.CombatAssist.FaceDirection(
+    localRoot,
+    direction,
+    minimumDegrees
+)
+    if not localRoot or not localRoot.Parent then
+        return false
+    end
+
+    local yaw =
+        GakuranExtraUI.CombatAssist.GetYawForDirection(direction)
+
+    if not yaw then
+        return false
+    end
+
+    local currentLook = localRoot.CFrame.LookVector
+    local currentYaw =
+        math.atan2(-currentLook.X, -currentLook.Z)
+
+    local delta = math.atan2(
+        math.sin(yaw - currentYaw),
+        math.cos(yaw - currentYaw)
+    )
+
+    if math.abs(delta)
+        < math.rad(tonumber(minimumDegrees) or 1.5) then
+        return true
+    end
+
+    local position = localRoot.Position
+    localRoot.CFrame =
+        CFrame.new(position.X, position.Y, position.Z)
+        * CFrame.Angles(0, currentYaw + delta, 0)
+
+    return true
+end
+
+function GakuranExtraUI.CombatAssist.LocalIsM1ing()
+    local active =
+        GakuranExtraUI.CombatAssist.LocalAnimations or {}
+
+    for _, anim in ipairs(active) do
+        if anim and anim.AnimationId then
+            local config =
+                GameConfig[tostring(anim.AnimationId)]
+
+            if config then
+                local name =
+                    tostring(config.DisplayName or anim.Name or "")
+
+                if string.find(name, "M1", 1, true) then
+                    return true
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+function GakuranExtraUI.CombatAssist.HandleWingChunCounter(
+    character,
+    localCharacter,
+    localRoot,
+    attackConfig,
+    anim
+)
+    -- Wing Chun M2 is a counter, not a normal incoming parry attack. It is
+    -- always excluded from normal AP execution below. This optional feature
+    -- only tries to make an already-started local M1 whiff the counter.
+    local toggle = GakuranExtraUI.WingChunCounterEscape
+
+    if not toggle
+        or not toggle.Get
+        or not toggle.Get() then
+        return
+    end
+
+    if not GakuranExtraUI.CombatAssist.LocalIsM1ing() then
+        return
+    end
+
+    local targetRoot =
+        character
+        and character:FindFirstChild("HumanoidRootPart")
+
+    if not targetRoot or not localRoot then
+        return
+    end
+
+    local duration = math.clamp(
+        GakuranExtraUI.CombatAssist.GetNumber(
+            "WingChunEscapeHold",
+            0.18
+        ),
+        0.08,
+        0.35
+    )
+
+    local animKey = anim and (anim.Address or anim) or character
+
+    if GakuranExtraUI.CombatAssist.CounterEscapeAnimKey
+        ~= animKey then
+
+        GakuranExtraUI.CombatAssist.CounterEscapeAnimKey =
+            animKey
+
+        GakuranExtraUI.CombatAssist.CounterEscapeTarget =
+            targetRoot
+
+        GakuranExtraUI.CombatAssist.CounterEscapeUntil =
+            os.clock() + duration
+    end
+
+    -- Turn directly AWAY from the counter user. This is deliberately body-only;
+    -- camera is never changed.
+    local away =
+        localRoot.Position - targetRoot.Position
+
+    GakuranExtraUI.CombatAssist.FaceDirection(
+        localRoot,
+        away,
+        0.75
+    )
+end
+
+function GakuranExtraUI.CombatAssist.FindCriticalAnimation()
+    local active =
+        GakuranExtraUI.CombatAssist.LocalAnimations or {}
+
+    for _, anim in ipairs(active) do
+        if anim and anim.AnimationId then
+            local config =
+                GameConfig[tostring(anim.AnimationId)]
+
+            if config
+                and GakuranExtraUI.CombatAssist.IsHeavy(config)
+                and not GakuranExtraUI.CombatAssist.IsWingChunCounter(config) then
+                return anim, config
+            end
+        end
+    end
+
+    return nil, nil
+end
+
+function GakuranExtraUI.CombatAssist.FindNearestCriticalTarget(
+    localRoot
+)
+    local maxRange = math.clamp(
+        GakuranExtraUI.CombatAssist.GetNumber(
+            "CriticalAimRange",
+            12
+        ),
+        4,
+        30
+    )
+
+    local bestCharacter = nil
+    local bestRoot = nil
+    local bestDistance = math.huge
+
+    for _, character in ipairs(TargetCharacters or {}) do
+        local root =
+            character
+            and character:FindFirstChild("HumanoidRootPart")
+
+        local humanoid =
+            character
+            and character:FindFirstChildWhichIsA("Humanoid")
+
+        if root
+            and humanoid
+            and humanoid.Health > 0 then
+
+            local distance =
+                (root.Position - localRoot.Position).Magnitude
+
+            if distance <= maxRange
+                and distance < bestDistance then
+
+                bestDistance = distance
+                bestCharacter = character
+                bestRoot = root
+            end
+        end
+    end
+
+    return bestCharacter, bestRoot
+end
+
+function GakuranExtraUI.CombatAssist.Task(localCharacter, localAnimations)
+    GakuranExtraUI.CombatAssist.LocalAnimations =
+        localAnimations or {}
+
+    local localRoot =
+        localCharacter
+        and localCharacter:FindFirstChild("HumanoidRootPart")
+
+    if not localRoot then
+        return
+    end
+
+    local now = os.clock()
+
+    -- Experimental Wing Chun counter escape hold.
+    if now
+        < (GakuranExtraUI.CombatAssist.CounterEscapeUntil or 0) then
+
+        local targetRoot =
+            GakuranExtraUI.CombatAssist.CounterEscapeTarget
+
+        if targetRoot and targetRoot.Parent then
+            local away =
+                localRoot.Position - targetRoot.Position
+
+            GakuranExtraUI.CombatAssist.FaceDirection(
+                localRoot,
+                away,
+                1.25
+            )
+        end
+    else
+        GakuranExtraUI.CombatAssist.CounterEscapeTarget = nil
+        GakuranExtraUI.CombatAssist.CounterEscapeAnimKey = nil
+    end
+
+    local aimToggle = GakuranExtraUI.CriticalAimLock
+
+    if not aimToggle
+        or not aimToggle.Get
+        or not aimToggle.Get() then
+
+        GakuranExtraUI.CombatAssist.CriticalAimAnimKey = nil
+        GakuranExtraUI.CombatAssist.CriticalAimTarget = nil
+        GakuranExtraUI.CombatAssist.CriticalAimTargetRoot = nil
+        return
+    end
+
+    -- Defensive Snap/Parry always wins over offensive Critical Aim.
+    if BlatantFaceLock
+        and BlatantFaceLock.humanoid then
+        return
+    end
+
+    if BlatantFaceThreatCharacter then
+        return
+    end
+
+    local criticalAnim =
+        GakuranExtraUI.CombatAssist.FindCriticalAnimation()
+
+    if not criticalAnim then
+        GakuranExtraUI.CombatAssist.CriticalAimAnimKey = nil
+        GakuranExtraUI.CombatAssist.CriticalAimTarget = nil
+        GakuranExtraUI.CombatAssist.CriticalAimTargetRoot = nil
+        return
+    end
+
+    local animKey =
+        criticalAnim.Address or criticalAnim
+
+    if GakuranExtraUI.CombatAssist.CriticalAimAnimKey
+        ~= animKey then
+
+        local target, targetRoot =
+            GakuranExtraUI.CombatAssist.FindNearestCriticalTarget(
+                localRoot
+            )
+
+        GakuranExtraUI.CombatAssist.CriticalAimAnimKey =
+            animKey
+
+        GakuranExtraUI.CombatAssist.CriticalAimTarget =
+            target
+
+        GakuranExtraUI.CombatAssist.CriticalAimTargetRoot =
+            targetRoot
+    end
+
+    local targetRoot =
+        GakuranExtraUI.CombatAssist.CriticalAimTargetRoot
+
+    if targetRoot and targetRoot.Parent then
+        local direction =
+            targetRoot.Position - localRoot.Position
+
+        -- Sticky only for the duration of the user's own critical animation.
+        -- No camera movement, and defensive Snap can override next frame.
+        GakuranExtraUI.CombatAssist.FaceDirection(
+            localRoot,
+            direction,
+            1.5
+        )
+    end
+end
+
+]====]local _j=[====[
+-- ==========================================================
+-- v7.0 All-Style Diagnostics + Conservative Learning Mode
+-- ==========================================================
+-- Low-register design: all persistent state/helpers live behind ONE table.
+--
+-- Learning safety:
+--   * disabled by default;
+--   * normal parry attacks only (never Wing Chun M2 counter);
+--   * custom ParryFunction attacks are observed but never auto-learned;
+--   * minimum 8 eligible outcomes before any decision;
+--   * if success rate is already >= 80%, timing is considered stable;
+--   * requires >= 3 misses and >= 35% miss rate;
+--   * requires a consistent execution-error direction;
+--   * changes only 0.002s (2ms) at a time;
+--   * at least 4 new eligible samples between changes;
+--   * total learned adjustment is clamped to +/-0.030s.
+--
+-- The learner intentionally refuses to guess when the data cannot tell whether
+-- a miss was early or late.
+
+local AdaptiveTiming = {
+    Rows = {},
+    ByRegData = {},
+    RowByAnimKey = {},
+    SnapByAnimKey = {},
+
+    InputRegData = nil,
+    PendingCustomRegData = nil,
+    PendingCustomUntil = 0,
+
+    Learned = rawget(_G, "__GakuranLearnedTimingValues") or {},
+    History = {},
+    Meta = {},
+
+    Settings = {
+        MinSamples = 8,
+        WindowSamples = 12,
+        MinMisses = 3,
+        MinMissRate = 0.35,
+        StableSuccessRate = 0.80,
+        DriftThreshold = 0.012,
+        ConsistencyRatio = 0.70,
+        Step = 0.002,
+        MaxAdjustment = 0.030,
+        MinNewSamplesBetweenAdjustments = 4,
+    },
+}
+
+_G.__GakuranLearnedTimingValues = AdaptiveTiming.Learned
+
+function AdaptiveTiming.Fmt(value)
+    if value == nil then
+        return "-"
+    end
+
+    local numberValue = tonumber(value)
+    if numberValue then
+        return string.format("%.4f", numberValue)
+    end
+
+    return tostring(value)
+end
+
+function AdaptiveTiming.Style(attackConfig)
+    return tostring(
+        attackConfig
+        and attackConfig.Style
+        or "Unknown"
+    )
+end
+
+function AdaptiveTiming.Attack(attackConfig, anim)
+    return tostring(
+        attackConfig
+        and attackConfig.DisplayName
+        or anim
+        and anim.Name
+        or "Unknown"
+    )
+end
+
+function AdaptiveTiming.Key(attackConfig, anim)
+    return AdaptiveTiming.Style(attackConfig)
+        .. "|"
+        .. AdaptiveTiming.Attack(attackConfig, anim)
+end
+
+function AdaptiveTiming.IsWingChunCounter(attackConfig)
+    if not attackConfig then
+        return false
+    end
+
+    local style = AdaptiveTiming.Style(attackConfig)
+    local attack = AdaptiveTiming.Attack(attackConfig)
+
+    return (style == "WingChun" or style == "WingChunAnims")
+        and attack == "M2"
+end
+
+function AdaptiveTiming.DiagnosticsEnabled()
+    if not GakuranExtraUI
+        or not GakuranExtraUI.DiagToggle
+        or not GakuranExtraUI.DiagToggle.Get then
+        retu
